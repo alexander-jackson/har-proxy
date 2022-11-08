@@ -29,18 +29,20 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
+fn entry_matches_request(entry: &Entry, request: &hyper::Request<Body>) -> bool {
+    return entry.request.url.contains(request.uri().path())
+        && entry.request.method == request.method().as_str();
+}
+
 async fn handle_request(
     request: hyper::Request<Body>,
     spec: Arc<HarFile>,
 ) -> Result<hyper::Response<Body>, Error> {
-    let path = request.uri().path();
-
     // Find a corresponding entry
-    let entry = spec
-        .log
-        .entries
+    let entries = &spec.log.entries;
+    let entry = entries
         .iter()
-        .find(|entry| entry.request.url.contains(path));
+        .find(|entry| entry_matches_request(entry, &request));
 
     let response = match entry {
         Some(value) => hyper::Response::builder()
