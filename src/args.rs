@@ -3,7 +3,8 @@ use std::path::PathBuf;
 use anyhow::Result;
 
 pub struct Args {
-    pub archive: PathBuf,
+    pub proxy_from: PathBuf,
+    pub port: u16,
 }
 
 impl Args {
@@ -11,7 +12,8 @@ impl Args {
         let mut args = pico_args::Arguments::from_env();
 
         Ok(Args {
-            archive: args.value_from_str("--archive")?,
+            proxy_from: args.value_from_str(["-f", "--from"])?,
+            port: args.opt_value_from_str(["-p", "--port"])?.unwrap_or(10320),
         })
     }
 }

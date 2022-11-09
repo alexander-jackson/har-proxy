@@ -29,10 +29,13 @@ async fn main() -> anyhow::Result<()> {
 
     let args = Args::parse()?;
 
-    tracing::info!("Reading archive file from {:?}", args.archive);
-
-    let raw = std::fs::read_to_string(&args.archive)?;
+    let raw = std::fs::read_to_string(&args.proxy_from)?;
     let harfile: Arc<HarFile> = Arc::new(serde_json::from_str(&raw)?);
+
+    tracing::info!(
+        "Proxying requsts from archive file at {:?}",
+        args.proxy_from
+    );
 
     let service = make_service_fn(move |_| {
         let spec = harfile.clone();
@@ -44,7 +47,9 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
-    let addr = SocketAddrV4::new(Ipv4Addr::LOCALHOST, 10320).into();
+    let addr = SocketAddrV4::new(Ipv4Addr::LOCALHOST, args.port).into();
+    tracing::info!("Binding server on port {}", addr);
+
     let server = Server::bind(&addr).serve(service);
 
     server.await?;
