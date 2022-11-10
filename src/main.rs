@@ -28,6 +28,7 @@ async fn main() -> anyhow::Result<()> {
     setup();
 
     let args = Args::parse()?;
+    let prefix: Arc<str> = Arc::from(args.prefix.as_str());
 
     let raw = std::fs::read_to_string(&args.proxy_from)?;
     let harfile: Arc<HarFile> = Arc::new(serde_json::from_str(&raw)?);
@@ -39,10 +40,11 @@ async fn main() -> anyhow::Result<()> {
 
     let service = make_service_fn(move |_| {
         let spec = harfile.clone();
+        let prefix = prefix.clone();
 
         async move {
             Ok::<_, Error>(service_fn(move |req: hyper::Request<Body>| {
-                handle_request(req, spec.clone())
+                handle_request(req, spec.clone(), prefix.clone())
             }))
         }
     });
@@ -60,6 +62,7 @@ async fn main() -> anyhow::Result<()> {
 async fn handle_request(
     request: hyper::Request<Body>,
     spec: Arc<HarFile>,
+    prefix: Arc<str>,
 ) -> Result<hyper::Response<Body>, Error> {
     let method = request.method();
 
@@ -74,7 +77,9 @@ async fn handle_request(
 
     tracing::info!(uri = ?request.uri(), "Handling a request");
 
-    let response = spec.search(&request).map_or_else(not_found, Into::into);
+    let response = spec
+        .search(&request, prefix.as_ref())
+        .map_or_else(not_found, Into::into);
 
     Ok(response)
 }

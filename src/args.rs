@@ -5,6 +5,7 @@ use anyhow::Result;
 pub struct Args {
     pub proxy_from: PathBuf,
     pub port: u16,
+    pub prefix: String,
 }
 
 impl Args {
@@ -14,6 +15,7 @@ impl Args {
         Ok(Args {
             proxy_from: args.value_from_str(["-f", "--from"])?,
             port: args.opt_value_from_str(["-p", "--port"])?.unwrap_or(10320),
+            prefix: args.opt_value_from_str("--prefix")?.unwrap_or_default(),
         })
     }
 }
