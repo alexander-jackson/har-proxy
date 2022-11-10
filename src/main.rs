@@ -4,7 +4,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use hyper::service::{make_service_fn, service_fn};
-use hyper::{Body, Error, Response, Server};
+use hyper::{Body, Error, Method, Response, Server};
 use tracing_subscriber::{filter::targets::Targets, layer::SubscriberExt, util::SubscriberInitExt};
 
 mod args;
@@ -61,7 +61,18 @@ async fn handle_request(
     request: hyper::Request<Body>,
     spec: Arc<HarFile>,
 ) -> Result<hyper::Response<Body>, Error> {
-    tracing::info!(method = ?request.method(), uri = ?request.uri(), "Handling a request");
+    let method = request.method();
+
+    if method != Method::GET {
+        tracing::warn!(
+            "The proxy only supports GET requests, {} requests will be returned a 404",
+            method
+        );
+
+        return Ok(not_found());
+    }
+
+    tracing::info!(uri = ?request.uri(), "Handling a request");
 
     let response = spec.search(&request).map_or_else(not_found, Into::into);
 
