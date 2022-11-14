@@ -65,6 +65,7 @@ async fn handle_request(
     prefix: Arc<str>,
 ) -> Result<hyper::Response<Body>, Error> {
     let method = request.method();
+    let uri = request.uri();
 
     if method != Method::GET {
         tracing::warn!(
@@ -72,18 +73,20 @@ async fn handle_request(
             method
         );
 
-        return Ok(not_found());
+        return Ok(not_found(&uri));
     }
 
-    tracing::info!(uri = ?request.uri(), "Handling a request");
+    tracing::info!(?uri, "Handling a request");
 
     let response = spec
         .search(&request, prefix.as_ref())
-        .map_or_else(not_found, Into::into);
+        .map_or_else(|| not_found(&uri), Into::into);
 
     Ok(response)
 }
 
-fn not_found() -> Response<Body> {
+fn not_found(uri: &hyper::Uri) -> Response<Body> {
+    tracing::warn!("Failed to find entry for {}", uri);
+
     Response::builder().status(404).body(Body::empty()).unwrap()
 }
