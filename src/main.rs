@@ -4,7 +4,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use hyper::service::{make_service_fn, service_fn};
-use hyper::{Body, Error, Method, Response, Server};
+use hyper::{Body, Client, Error, Method, Response, Server, Uri};
 use tokio::sync::Mutex;
 use tracing_subscriber::{filter::targets::Targets, layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -85,14 +85,22 @@ async fn handle_request(
 
     let spec = spec.lock().await;
 
-    let response = spec
-        .search(&request, &prefixes)
-        .map_or_else(|| not_found(uri), Into::into);
-
-    Ok(response)
+    match spec.search(&request, &prefixes) {
+        Some(res) => Ok(res.into()),
+        None => proxy_to_base(uri).await,
+    }
 }
 
-fn not_found(uri: &hyper::Uri) -> Response<Body> {
+async fn proxy_to_base(uri: &Uri) -> Result<hyper::Response<Body>, Error> {
+    let client = Client::new();
+    let path = format!("http://localhost:20010{}", uri.path());
+
+    tracing::info!("Proxing request to base at {}", path);
+
+    client.get(Uri::from_str(&path).unwrap()).await
+}
+
+fn not_found(uri: &Uri) -> Response<Body> {
     tracing::warn!("Failed to find entry for {}", uri);
 
     Response::builder().status(404).body(Body::empty()).unwrap()
