@@ -5,9 +5,11 @@ use std::sync::Arc;
 
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Error, Method, Response, Server};
+use tokio::sync::Mutex;
 use tracing_subscriber::{filter::targets::Targets, layer::SubscriberExt, util::SubscriberInitExt};
 
 mod args;
+mod hot_reload;
 mod structure;
 
 use crate::args::Args;
@@ -29,17 +31,30 @@ async fn main() -> anyhow::Result<()> {
 
     let args = Args::parse()?;
     let prefix: Arc<str> = Arc::from(args.prefix.as_str());
+    let path = args.proxy_from.as_path();
 
-    let raw = std::fs::read_to_string(&args.proxy_from)?;
-    let harfile: Arc<HarFile> = Arc::new(serde_json::from_str(&raw)?);
+    let raw = std::fs::read_to_string(path)?;
+    let archive: Arc<Mutex<HarFile>> = Arc::new(Mutex::new(serde_json::from_str(&raw)?));
 
-    tracing::info!(
-        "Proxying requsts from archive file at {:?}",
-        args.proxy_from
-    );
+    let hot_reload_archive = Arc::clone(&archive);
+    let hot_reload_path = args.proxy_from.clone();
+
+    // Setup auto-reloading
+    tokio::spawn(async move {
+        loop {
+            let archive = Arc::clone(&hot_reload_archive);
+            let path = hot_reload_path.clone();
+
+            if let Err(error) = hot_reload::run(path, archive).await {
+                tracing::error!("Got an error when hot reloading: {:?}", error);
+            }
+        }
+    });
+
+    tracing::info!("Proxying requsts from archive file at {:?}", path);
 
     let service = make_service_fn(move |_| {
-        let spec = harfile.clone();
+        let spec = archive.clone();
         let prefix = prefix.clone();
 
         async move {
@@ -61,7 +76,7 @@ async fn main() -> anyhow::Result<()> {
 
 async fn handle_request(
     request: hyper::Request<Body>,
-    spec: Arc<HarFile>,
+    spec: Arc<Mutex<HarFile>>,
     prefix: Arc<str>,
 ) -> Result<hyper::Response<Body>, Error> {
     let method = request.method();
@@ -77,6 +92,8 @@ async fn handle_request(
     }
 
     tracing::info!(?uri, "Handling a request");
+
+    let spec = spec.lock().await;
 
     let response = spec
         .search(&request, prefix.as_ref())
