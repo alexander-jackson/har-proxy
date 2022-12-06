@@ -30,7 +30,7 @@ async fn main() -> anyhow::Result<()> {
     setup();
 
     let args = Args::parse()?;
-    let prefix: Arc<str> = Arc::from(args.prefix.as_str());
+    let prefix: Arc<Vec<String>> = Arc::from(args.prefixes);
 
     let raw = std::fs::read_to_string(&args.proxy_from)?;
     let archive: Arc<Mutex<HarFile>> = Arc::new(Mutex::new(serde_json::from_str(&raw)?));
@@ -67,7 +67,7 @@ async fn main() -> anyhow::Result<()> {
 async fn handle_request(
     request: hyper::Request<Body>,
     spec: Arc<Mutex<HarFile>>,
-    prefix: Arc<str>,
+    prefixes: Arc<Vec<String>>,
 ) -> Result<hyper::Response<Body>, Error> {
     let method = request.method();
     let uri = request.uri();
@@ -86,7 +86,7 @@ async fn handle_request(
     let spec = spec.lock().await;
 
     let response = spec
-        .search(&request, prefix.as_ref())
+        .search(&request, &prefixes)
         .map_or_else(|| not_found(&uri), Into::into);
 
     Ok(response)

@@ -8,11 +8,15 @@ pub struct HarFile {
 }
 
 impl HarFile {
-    pub fn search(&self, request: &hyper::Request<hyper::Body>, prefix: &str) -> Option<&Entry> {
+    pub fn search(
+        &self,
+        request: &hyper::Request<hyper::Body>,
+        prefixes: &[String],
+    ) -> Option<&Entry> {
         self.log
             .entries
             .iter()
-            .find(|entry| entry.matches(request, prefix))
+            .find(|entry| entry.matches(request, prefixes))
     }
 }
 
@@ -28,13 +32,18 @@ pub struct Entry {
 }
 
 impl Entry {
-    pub fn matches(&self, request: &hyper::Request<hyper::Body>, prefix: &str) -> bool {
+    pub fn matches(&self, request: &hyper::Request<hyper::Body>, prefixes: &[String]) -> bool {
         let incoming_url = request.uri().path();
         let stored_url =
             hyper::Uri::from_str(&self.request.url).expect("Invalid URI in configuration");
 
-        return incoming_url == stored_url.path().trim_start_matches(prefix)
-            && self.request.method == request.method().as_str();
+        if self.request.method != request.method().as_str() {
+            return false;
+        }
+
+        prefixes
+            .iter()
+            .any(|prefix| incoming_url == stored_url.path().trim_start_matches(prefix))
     }
 }
 
@@ -95,7 +104,7 @@ mod tests {
             .body(Body::empty())
             .unwrap();
 
-        assert!(entry.matches(&request, PREFIX));
+        assert!(entry.matches(&request, &[PREFIX.to_string()]));
     }
 
     #[test]
@@ -114,6 +123,27 @@ mod tests {
             .body(Body::empty())
             .unwrap();
 
-        assert!(!entry.matches(&request, PREFIX));
+        assert!(!entry.matches(&request, &[PREFIX.to_string()]));
+    }
+
+    #[test]
+    fn matching_compares_multiple_prefixes() {
+        let prefixes = &[String::from("/first"), String::from("/second")];
+
+        let entry = Entry {
+            request: Request {
+                method: String::from("GET"),
+                url: String::from("http://example.com:9000/second/api/v1/users"),
+            },
+            response: SOME_RESPONSE,
+        };
+
+        let request = hyper::Request::builder()
+            .method(Method::GET)
+            .uri("http://localhost:8080/api/v1/users")
+            .body(Body::empty())
+            .unwrap();
+
+        assert!(entry.matches(&request, prefixes));
     }
 }
