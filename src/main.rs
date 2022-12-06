@@ -31,15 +31,17 @@ async fn main() -> anyhow::Result<()> {
 
     let args = Args::parse()?;
     let prefix: Arc<str> = Arc::from(args.prefix.as_str());
-    let path = args.proxy_from.as_path();
 
-    let raw = std::fs::read_to_string(path)?;
+    let raw = std::fs::read_to_string(&args.proxy_from)?;
     let archive: Arc<Mutex<HarFile>> = Arc::new(Mutex::new(serde_json::from_str(&raw)?));
 
     // Setup auto-reloading
     hot_reload::spawn(args.proxy_from.clone(), Arc::clone(&archive));
 
-    tracing::info!("Proxying requsts from archive file at {:?}", path);
+    tracing::info!(
+        "Proxying requsts from archive file at {:?}",
+        args.proxy_from
+    );
 
     let service = make_service_fn(move |_| {
         let spec = archive.clone();
