@@ -19,7 +19,7 @@ impl Args {
                 .opt_value_from_str::<_, String>("--prefixes")?
                 .unwrap_or_default()
                 .split(',')
-                .map(|s| s.to_string())
+                .map(ToString::to_string)
                 .collect(),
         })
     }

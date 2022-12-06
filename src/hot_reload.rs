@@ -18,7 +18,7 @@ pub fn spawn(path: PathBuf, current_state: Arc<Mutex<HarFile>>) {
 }
 
 async fn run(path: &Path, current_state: &Arc<Mutex<HarFile>>) -> Result<()> {
-    let mut last_modified = fetch_last_modified(&path).await?;
+    let mut last_modified = fetch_last_modified(path).await?;
     tracing::info!(
         "Starting the hot-reloading, current last modified is {:?}",
         last_modified
@@ -27,12 +27,12 @@ async fn run(path: &Path, current_state: &Arc<Mutex<HarFile>>) -> Result<()> {
     loop {
         tokio::time::sleep(Duration::from_secs(1)).await;
 
-        let modified = fetch_last_modified(&path).await?;
+        let modified = fetch_last_modified(path).await?;
 
         if modified > last_modified {
             last_modified = modified;
 
-            reload_file(&path, &current_state).await?;
+            reload_file(path, current_state).await?;
         }
     }
 }

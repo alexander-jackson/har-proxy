@@ -78,7 +78,7 @@ async fn handle_request(
             method
         );
 
-        return Ok(not_found(&uri));
+        return Ok(not_found(uri));
     }
 
     tracing::info!(?uri, "Handling a request");
@@ -87,7 +87,7 @@ async fn handle_request(
 
     let response = spec
         .search(&request, &prefixes)
-        .map_or_else(|| not_found(&uri), Into::into);
+        .map_or_else(|| not_found(uri), Into::into);
 
     Ok(response)
 }
