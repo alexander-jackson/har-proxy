@@ -7,7 +7,17 @@ use tokio::sync::Mutex;
 
 use crate::structure::HarFile;
 
-pub async fn run(path: PathBuf, current_state: Arc<Mutex<HarFile>>) -> Result<()> {
+pub fn spawn(path: PathBuf, current_state: Arc<Mutex<HarFile>>) {
+    tokio::spawn(async move {
+        loop {
+            if let Err(error) = run(&path, &current_state).await {
+                tracing::error!("Got an error when hot reloading: {:?}", error);
+            }
+        }
+    });
+}
+
+async fn run(path: &Path, current_state: &Arc<Mutex<HarFile>>) -> Result<()> {
     let mut last_modified = fetch_last_modified(&path).await?;
     tracing::info!(
         "Starting the hot-reloading, current last modified is {:?}",

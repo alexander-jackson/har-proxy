@@ -36,20 +36,8 @@ async fn main() -> anyhow::Result<()> {
     let raw = std::fs::read_to_string(path)?;
     let archive: Arc<Mutex<HarFile>> = Arc::new(Mutex::new(serde_json::from_str(&raw)?));
 
-    let hot_reload_archive = Arc::clone(&archive);
-    let hot_reload_path = args.proxy_from.clone();
-
     // Setup auto-reloading
-    tokio::spawn(async move {
-        loop {
-            let archive = Arc::clone(&hot_reload_archive);
-            let path = hot_reload_path.clone();
-
-            if let Err(error) = hot_reload::run(path, archive).await {
-                tracing::error!("Got an error when hot reloading: {:?}", error);
-            }
-        }
-    });
+    hot_reload::spawn(args.proxy_from.clone(), Arc::clone(&archive));
 
     tracing::info!("Proxying requsts from archive file at {:?}", path);
 
