@@ -6,6 +6,7 @@ pub struct Args {
     pub proxy_from: PathBuf,
     pub port: u16,
     pub prefixes: Vec<String>,
+    pub base: Option<String>,
 }
 
 impl Args {
@@ -21,6 +22,7 @@ impl Args {
                 .split(',')
                 .map(ToString::to_string)
                 .collect(),
+            base: args.opt_value_from_str("--base")?,
         })
     }
 }

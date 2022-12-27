@@ -31,6 +31,7 @@ async fn main() -> anyhow::Result<()> {
 
     let args = Args::parse()?;
     let prefix: Arc<Vec<String>> = Arc::from(args.prefixes);
+    let base: Option<Arc<str>> = args.base.map(|value| value.into());
 
     let raw = std::fs::read_to_string(&args.proxy_from)?;
     let archive: Arc<Mutex<HarFile>> = Arc::new(Mutex::new(serde_json::from_str(&raw)?));
@@ -46,10 +47,11 @@ async fn main() -> anyhow::Result<()> {
     let service = make_service_fn(move |_| {
         let spec = Arc::clone(&archive);
         let prefix = prefix.clone();
+        let base = base.clone();
 
         async move {
             Ok::<_, Error>(service_fn(move |req: hyper::Request<Body>| {
-                handle_request(req, Arc::clone(&spec), prefix.clone())
+                handle_request(req, Arc::clone(&spec), prefix.clone(), base.clone())
             }))
         }
     });
@@ -68,6 +70,7 @@ async fn handle_request(
     request: hyper::Request<Body>,
     spec: Arc<Mutex<HarFile>>,
     prefixes: Arc<Vec<String>>,
+    base: Option<Arc<str>>,
 ) -> Result<hyper::Response<Body>, Error> {
     let method = request.method();
     let uri = request.uri();
@@ -87,13 +90,17 @@ async fn handle_request(
 
     match spec.search(&request, &prefixes) {
         Some(res) => Ok(res.into()),
-        None => proxy_to_base(uri).await,
+        None => proxy_to_base(uri, base).await,
     }
 }
 
-async fn proxy_to_base(uri: &Uri) -> Result<hyper::Response<Body>, Error> {
+async fn proxy_to_base(uri: &Uri, base: Option<Arc<str>>) -> Result<hyper::Response<Body>, Error> {
+    let Some(base_uri) = base else {
+        return Ok(hyper::Response::builder().status(404).body(Body::empty()).unwrap());
+    };
+
     let client = Client::new();
-    let path = format!("http://localhost:20010{}", uri.path());
+    let path = format!("{base_uri}{}", uri.path());
 
     tracing::info!("Proxing request to base at {}", path);
 
